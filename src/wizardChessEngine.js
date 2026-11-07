@@ -2,6 +2,18 @@ import * as THREE_NS from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { clone as cloneSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.js';
+import {
+  initAudioEngine,
+  playStoneSlide,
+  playStoneThud,
+  playMeleeClash,
+  playStoneShatter,
+  playKingFall,
+  playCheckAlert,
+  playPieceSelect,
+  toggleAudioMute,
+  isAudioMuted
+} from './soundEngine.js';
 
 /** @type {any} */
 const THREE = THREE_NS;
@@ -870,6 +882,147 @@ export function initWizardChess() {
     scene.add(boardGroup);
     const squareHighlightsGroup = new THREE.Group();
     scene.add(squareHighlightsGroup);
+
+    // =========================================================================
+    // Dramatic 3D Check Warning Effect (Golden Ring Pulsation & Swirling Motes)
+    // =========================================================================
+    const checkVisualGroup = new THREE.Group();
+    checkVisualGroup.visible = false;
+    scene.add(checkVisualGroup);
+
+    // 1. Concentric Golden Pulsing Aura Rings
+    const checkInnerRingGeo = new THREE.RingGeometry(BOARD_SQ_SIZE * 0.18, BOARD_SQ_SIZE * 0.25, 48);
+    const checkInnerRingMat = new THREE.MeshBasicMaterial({
+      color: 0xffd700,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.85,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const checkInnerRing = new THREE.Mesh(checkInnerRingGeo, checkInnerRingMat);
+    checkInnerRing.rotation.x = -Math.PI / 2;
+    checkVisualGroup.add(checkInnerRing);
+
+    const checkOuterRingGeo = new THREE.RingGeometry(BOARD_SQ_SIZE * 0.34, BOARD_SQ_SIZE * 0.42, 48);
+    const checkOuterRingMat = new THREE.MeshBasicMaterial({
+      color: 0xf5d76e,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.65,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const checkOuterRing = new THREE.Mesh(checkOuterRingGeo, checkOuterRingMat);
+    checkOuterRing.rotation.x = -Math.PI / 2;
+    checkVisualGroup.add(checkOuterRing);
+
+    // 2. Swirling Golden Mote Particles rising in a vortex around the King
+    const CHECK_PARTICLE_COUNT = 24;
+    const checkParticlePositions = new Float32Array(CHECK_PARTICLE_COUNT * 3);
+    const checkParticleData = [];
+
+    for (let i = 0; i < CHECK_PARTICLE_COUNT; i++) {
+      const angle = (i / CHECK_PARTICLE_COUNT) * Math.PI * 2;
+      const radius = BOARD_SQ_SIZE * 0.20 + Math.random() * 0.18;
+      const y = Math.random() * 0.65;
+      const speed = 0.45 + Math.random() * 0.65;
+      const rotSpeed = 1.2 + Math.random() * 1.6;
+
+      checkParticlePositions[i * 3 + 0] = Math.cos(angle) * radius;
+      checkParticlePositions[i * 3 + 1] = y;
+      checkParticlePositions[i * 3 + 2] = Math.sin(angle) * radius;
+
+      checkParticleData.push({ angle, radius, y, speed, rotSpeed });
+    }
+
+    const checkParticleGeo = new THREE.BufferGeometry();
+    checkParticleGeo.setAttribute('position', new THREE.BufferAttribute(checkParticlePositions, 3));
+
+    function createCheckMoteTexture() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 64;
+      canvas.height = 64;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        const grad = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+        grad.addColorStop(0, 'rgba(255, 250, 200, 1)');
+        grad.addColorStop(0.3, 'rgba(245, 215, 110, 0.8)');
+        grad.addColorStop(0.65, 'rgba(212, 175, 55, 0.35)');
+        grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, 64, 64);
+      }
+      return new THREE.CanvasTexture(canvas);
+    }
+
+    const checkParticleMat = new THREE.PointsMaterial({
+      size: 0.05,
+      map: createCheckMoteTexture(),
+      transparent: true,
+      opacity: 0.9,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const checkParticlePoints = new THREE.Points(checkParticleGeo, checkParticleMat);
+    checkVisualGroup.add(checkParticlePoints);
+
+    // 3. Cascading Will-o'-the-Wisp (Fogo-Fátuo Dourado Embers) Cascading Rain
+    const CHECK_CASCADE_COUNT = 48;
+    const checkCascadePositions = new Float32Array(CHECK_CASCADE_COUNT * 3);
+    const checkCascadeData = [];
+
+    for (let i = 0; i < CHECK_CASCADE_COUNT; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const radius = Math.random() * BOARD_SQ_SIZE * 0.46;
+      const y = Math.random() * 1.25;
+      const fallSpeed = 0.35 + Math.random() * 0.55;
+      const swaySpeed = 2.0 + Math.random() * 3.0;
+      const seed = Math.random() * 10;
+
+      checkCascadePositions[i * 3 + 0] = Math.cos(angle) * radius;
+      checkCascadePositions[i * 3 + 1] = y;
+      checkCascadePositions[i * 3 + 2] = Math.sin(angle) * radius;
+
+      checkCascadeData.push({ angle, radius, y, fallSpeed, swaySpeed, seed });
+    }
+
+    const checkCascadeGeo = new THREE.BufferGeometry();
+    checkCascadeGeo.setAttribute('position', new THREE.BufferAttribute(checkCascadePositions, 3));
+
+    function createFogoFatuoTexture() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 64;
+      canvas.height = 64;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        const grad = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+        grad.addColorStop(0, 'rgba(255, 235, 150, 1)');
+        grad.addColorStop(0.25, 'rgba(245, 195, 60, 0.85)');
+        grad.addColorStop(0.6, 'rgba(212, 140, 30, 0.40)');
+        grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, 64, 64);
+      }
+      return new THREE.CanvasTexture(canvas);
+    }
+
+    const checkCascadeMat = new THREE.PointsMaterial({
+      size: 0.055,
+      map: createFogoFatuoTexture(),
+      transparent: true,
+      opacity: 0.95,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const checkCascadePoints = new THREE.Points(checkCascadeGeo, checkCascadeMat);
+    checkVisualGroup.add(checkCascadePoints);
+
+    // 4. Golden Warning Aura Light (kept visible=true with intensity=0 when idle to prevent shader rebuilds)
+    const checkPointLight = new THREE.PointLight(0xffb74d, 0, 3.2, 1.8);
+    checkPointLight.visible = true;
+    scene.add(checkPointLight);
+
     const boardSquareMeshes = [];
 
     function buildChessBoardGrid() {
@@ -1667,6 +1820,12 @@ export function initWizardChess() {
       checkmateState.winnerColor = null;
       checkmateState.kingFallAngleDeg = 0;
       checkmateState.phase = 'none';
+      if (checkVisualGroup) {
+        checkVisualGroup.visible = false;
+      }
+      if (checkPointLight) {
+        checkPointLight.intensity = 0;
+      }
       const overlay = document.getElementById('checkmate-overlay');
       if (overlay) {
         overlay.classList.remove('visible');
@@ -1768,6 +1927,9 @@ export function initWizardChess() {
       currentTurn = 'w';
       isAnimatingMove = false;
       gameOver = false;
+      matchStartTime = Date.now();
+      matchElapsedSeconds = 0;
+      matchTimerPaused = false;
       capturedByWhite = 0;
       capturedByBlack = 0;
       moveHistory = [];
@@ -2514,7 +2676,12 @@ export function initWizardChess() {
       let prevCamPos = camera.position.clone();
       let prevPiecePos = piece.mesh.position.clone();
 
+      // Trigger heavy stone sliding friction sound
+      playStoneSlide(isCapture ? tApproach : totalDuration, piece.type === 'knight');
+
       function finishMove() {
+        // Solid stone pedestal placement impact
+        playStoneThud(1.0);
         resetBystandersToHome();
         boardState[fromR][fromC] = null;
         boardState[toR][toC] = piece;
@@ -2685,6 +2852,7 @@ export function initWizardChess() {
               (atkClipTime >= CONTACT_CLIP_TIME || elapsed >= tContact + 0.06)
             ) {
               defenderFlinchTriggered = true;
+              playMeleeClash(piece.type);
               if (captured) {
                 playPieceClip(captured, 'Shatter', false, 0.04);
                 impactFlashLight.position.set(
@@ -2699,6 +2867,7 @@ export function initWizardChess() {
             // Blow Burst: after visible weapon impact & follow-through, defender explodes into stone shards!
             if (!shatterTriggered && (atkClipTime >= BLOW_CLIP_TIME || elapsed >= tImpact + 0.06)) {
               shatterTriggered = true;
+              playStoneShatter();
               impactActualTime = elapsed;
               postShatterPiecePos.copy(piece.mesh.position);
               if (captured && captured.mesh) {
@@ -2782,11 +2951,313 @@ export function initWizardChess() {
     const activeMoveTweens = [];
 
     // =========================================================================
-    // Single-Player Tactical AI (Auto-Plays Opponent Turn + Manual AI Button)
+    // Single-Player Tactical AI Engine with 10 Grandmaster Legends & Difficulty Levels
     // =========================================================================
+    const CHESS_LEGENDS = {
+      kasparov: {
+        id: 'kasparov',
+        name: 'Garry Kasparov',
+        title: 'O Monstro de Baku',
+        avatar: '👑',
+        badgeColor: '#e63946',
+        quote: 'O xadrez é a arte da luta tática e da iniciativa implacável.',
+        styleSummary: 'Agressividade tática avassaladora, pressão constante no centro e ataques diretos.',
+        kingAttackWeight: 65,
+        centerWeight: 16,
+        sacrificeTolerance: 25,
+        positionalWeight: 12,
+        developmentWeight: 14,
+        piecePref: { queen: 1.25, rook: 1.20, bishop: 1.10, knight: 1.05 }
+      },
+      carlsen: {
+        id: 'carlsen',
+        name: 'Magnus Carlsen',
+        title: 'Precisão Cirúrgica',
+        avatar: '🎯',
+        badgeColor: '#4ea8de',
+        quote: 'Algumas pessoas pensam que se sua posição for boa, ela se jogará sozinha.',
+        styleSummary: 'Evolução posicional gradual, sufocamento e exploração milimétrica de finais.',
+        kingAttackWeight: 35,
+        centerWeight: 20,
+        sacrificeTolerance: 5,
+        positionalWeight: 45,
+        developmentWeight: 16,
+        piecePref: { knight: 1.25, rook: 1.20, pawn: 1.30, bishop: 1.15 }
+      },
+      fischer: {
+        id: 'fischer',
+        name: 'Bobby Fischer',
+        title: 'Clareza Cristalina',
+        avatar: '⚡',
+        badgeColor: '#f5d76e',
+        quote: 'Eu não acredito em psicologia, eu acredito em boas jogadas.',
+        styleSummary: 'Lances diretos e enérgicos, aberturas afiadas e bispos dominantes.',
+        kingAttackWeight: 50,
+        centerWeight: 24,
+        sacrificeTolerance: 12,
+        positionalWeight: 22,
+        developmentWeight: 26,
+        piecePref: { bishop: 1.35, pawn: 1.20, rook: 1.15, queen: 1.10 }
+      },
+      tal: {
+        id: 'tal',
+        name: 'Mikhail Tal',
+        title: 'O Mago de Riga',
+        avatar: '🧙‍♂️',
+        badgeColor: '#9d4edd',
+        quote: 'Você precisa levar seu oponente a uma floresta negra e sombria.',
+        styleSummary: 'Caos tático espetacular, sacrifícios arrojados e tempestade sobre o Rei.',
+        kingAttackWeight: 95,
+        centerWeight: 10,
+        sacrificeTolerance: 80,
+        positionalWeight: 6,
+        developmentWeight: 12,
+        piecePref: { knight: 1.40, bishop: 1.30, queen: 1.35 }
+      },
+      karpov: {
+        id: 'karpov',
+        name: 'Anatoly Karpov',
+        title: 'A Jiboia Posicional',
+        avatar: '🐍',
+        badgeColor: '#2a9d8f',
+        quote: 'Não dê ao seu oponente nenhuma chance de contra-jogo ativo.',
+        styleSummary: 'Profilaxia implacável, restrição de mobilidade inimiga e controle total.',
+        kingAttackWeight: 22,
+        centerWeight: 22,
+        sacrificeTolerance: 0,
+        positionalWeight: 55,
+        developmentWeight: 20,
+        piecePref: { knight: 1.30, rook: 1.22, pawn: 1.25 }
+      },
+      capablanca: {
+        id: 'capablanca',
+        name: 'José R. Capablanca',
+        title: 'A Máquina Humana',
+        avatar: '💎',
+        badgeColor: '#72efdd',
+        quote: 'Para aprender a jogar xadrez, você deve começar pelos finais.',
+        styleSummary: 'Harmonia perfeita entre as peças, jogo limpo e conversão sem erros.',
+        kingAttackWeight: 28,
+        centerWeight: 18,
+        sacrificeTolerance: 0,
+        positionalWeight: 35,
+        developmentWeight: 22,
+        piecePref: { queen: 1.12, rook: 1.18, bishop: 1.18 }
+      },
+      morphy: {
+        id: 'morphy',
+        name: 'Paul Morphy',
+        title: 'O Romântico Supremo',
+        avatar: '🏰',
+        badgeColor: '#f77f00',
+        quote: 'Ajude suas peças e elas ajudarão você a vencer o Rei inimigo.',
+        styleSummary: 'Desenvolvimento ultrarrápido de peças, abertura de linhas e ataques fulminantes.',
+        kingAttackWeight: 60,
+        centerWeight: 28,
+        sacrificeTolerance: 35,
+        positionalWeight: 10,
+        developmentWeight: 40,
+        piecePref: { bishop: 1.28, knight: 1.22, rook: 1.18 }
+      },
+      alekhine: {
+        id: 'alekhine',
+        name: 'Alexander Alekhine',
+        title: 'O Furacão Tático',
+        avatar: '🔥',
+        badgeColor: '#d62828',
+        quote: 'Para vencer, você deve fazer com que seu oponente pense que ele é quem está atacando.',
+        styleSummary: 'Combinações dinâmicas e selvagens com ataque combinado de Dama e Torres.',
+        kingAttackWeight: 75,
+        centerWeight: 14,
+        sacrificeTolerance: 45,
+        positionalWeight: 16,
+        developmentWeight: 16,
+        piecePref: { queen: 1.40, rook: 1.30, bishop: 1.15 }
+      },
+      nakamura: {
+        id: 'nakamura',
+        name: 'Hikaru Nakamura',
+        title: 'Rei do Contra-Ataque',
+        avatar: '⚡',
+        badgeColor: '#ffb703',
+        quote: 'No xadrez moderno, você deve ser incrivelmente rápido e imprevisível.',
+        styleSummary: 'Velocidade de cálculo, recursos táticos inesperados e defesas acrobáticas.',
+        kingAttackWeight: 45,
+        centerWeight: 16,
+        sacrificeTolerance: 20,
+        positionalWeight: 24,
+        developmentWeight: 18,
+        piecePref: { knight: 1.35, queen: 1.22, rook: 1.15 }
+      },
+      polgar: {
+        id: 'polgar',
+        name: 'Judit Polgár',
+        title: 'A Rainha do Ataque',
+        avatar: '👑',
+        badgeColor: '#e0aaff',
+        quote: 'A melhor defesa é sempre um ataque devastador e ininterrompido.',
+        styleSummary: 'Agressividade destemida, busca incansável por xeque-mate e tática avassaladora.',
+        kingAttackWeight: 85,
+        centerWeight: 16,
+        sacrificeTolerance: 50,
+        positionalWeight: 12,
+        developmentWeight: 18,
+        piecePref: { queen: 1.35, bishop: 1.28, knight: 1.22 }
+      }
+    };
+
+    const AI_DIFFICULTIES = {
+      iniciante: {
+        id: 'iniciante',
+        name: 'Iniciante (Aprendiz)',
+        badge: '🟢',
+        description: 'Lances casuais, permite recuperar de erros e busca trocas simples.',
+        depth: 1,
+        noiseJitter: 38,
+        blunderChance: 0.18
+      },
+      intermediario: {
+        id: 'intermediario',
+        name: 'Intermediário (Guardião)',
+        badge: '🟡',
+        description: 'Desenvolve peças no centro, evita entregas diretas e responde a ameaças.',
+        depth: 2,
+        noiseJitter: 14,
+        blunderChance: 0.05
+      },
+      avancado: {
+        id: 'avancado',
+        name: 'Avançado (Mestre)',
+        badge: '🟠',
+        description: 'Visão tática afiada de múltiplos lances, defende fraquezas e cria pressão.',
+        depth: 2,
+        noiseJitter: 4,
+        blunderChance: 0
+      },
+      lenda: {
+        id: 'lenda',
+        name: 'Lenda (Grão-Mestre)',
+        badge: '🔴',
+        description: 'Precisão de Campeão Mundial. Punir erros implacavelmente com estilo lendário.',
+        depth: 3,
+        noiseJitter: 0,
+        blunderChance: 0
+      }
+    };
+
+    let currentAIDifficulty = 'lenda';
+    let currentAILegend = 'kasparov';
+
+    function setAIDifficulty(diffId) {
+      if (AI_DIFFICULTIES[diffId]) {
+        currentAIDifficulty = diffId;
+        return true;
+      }
+      return false;
+    }
+
+    function setAILegend(legendId) {
+      if (CHESS_LEGENDS[legendId]) {
+        currentAILegend = legendId;
+        return true;
+      }
+      return false;
+    }
+
+    function getAIConfig() {
+      return {
+        difficulty: currentAIDifficulty,
+        legend: currentAILegend,
+        difficultyConfig: AI_DIFFICULTIES[currentAIDifficulty],
+        legendConfig: CHESS_LEGENDS[currentAILegend],
+        allDifficulties: Object.values(AI_DIFFICULTIES),
+        allLegends: Object.values(CHESS_LEGENDS)
+      };
+    }
+
+    let currentBoardTheme = 'cathedral';
+
+    function setBoard3DTheme(themeId) {
+      currentBoardTheme = themeId;
+      const lightSqMat = themeId === 'classic_wood'
+        ? new THREE.MeshStandardMaterial({ color: 0xdfc08a, roughness: 0.45, metalness: 0.02 })
+        : themeId === 'classic_marble'
+        ? new THREE.MeshStandardMaterial({ color: 0xf4f0ea, roughness: 0.22, metalness: 0.08 })
+        : new THREE.MeshStandardMaterial({ color: 0xdcd3c2, roughness: 0.38, metalness: 0.06 });
+
+      const darkSqMat = themeId === 'classic_wood'
+        ? new THREE.MeshStandardMaterial({ color: 0x7a4b27, roughness: 0.50, metalness: 0.02 })
+        : themeId === 'classic_marble'
+        ? new THREE.MeshStandardMaterial({ color: 0x2b3848, roughness: 0.25, metalness: 0.15 })
+        : new THREE.MeshStandardMaterial({ color: 0x14171f, roughness: 0.28, metalness: 0.18 });
+
+      for (let i = 0; i < boardSquareMeshes.length; i++) {
+        const sq = boardSquareMeshes[i];
+        if (sq && sq.userData) {
+          const isLight = (sq.userData.r + sq.userData.c) % 2 === 0;
+          sq.material = isLight ? lightSqMat : darkSqMat;
+        }
+      }
+      return true;
+    }
+
+    function getMasterHintMove() {
+      const bestMove = chooseSmartAIMove(currentTurn);
+      const leg = CHESS_LEGENDS[currentAILegend] || CHESS_LEGENDS.kasparov;
+      if (!bestMove) {
+        const txt = `💡 ${leg.name}: "Nenhum lance tático disponível no momento. Mantenha a vigilância."`;
+        return {
+          text: txt,
+          advice: txt,
+          move: null,
+          san: ''
+        };
+      }
+      const san = formatSAN(bestMove, false, false);
+      const fromSq = `${String.fromCharCode(97 + bestMove.fromC)}${8 - bestMove.fromR}`;
+      const toSq = `${String.fromCharCode(97 + bestMove.toC)}${8 - bestMove.toR}`;
+
+      clearSquareHighlights();
+      showSquareHighlights(bestMove.fromR, bestMove.fromC, [{ r: bestMove.toR, c: bestMove.toC, capture: Boolean(boardState[bestMove.toR][bestMove.toC]) }]);
+
+      const adviceText = `💡 ${leg.name} (${leg.title}): "Recomendo o lance ${san} (${fromSq} ➔ ${toSq}). ${leg.quote || leg.styleSummary}"`;
+      return {
+        text: adviceText,
+        advice: adviceText,
+        move: bestMove,
+        san,
+        legend: leg
+      };
+    }
+
+
     function chooseSmartAIMove(color) {
       const legalMoves = getAllLegalMoves(color);
       if (legalMoves.length === 0) return null;
+
+      const diffConfig = AI_DIFFICULTIES[currentAIDifficulty] || AI_DIFFICULTIES.lenda;
+      const legendConfig = CHESS_LEGENDS[currentAILegend] || CHESS_LEGENDS.kasparov;
+
+      // Blunder chance for beginner/intermediate levels
+      if (diffConfig.blunderChance > 0 && Math.random() < diffConfig.blunderChance) {
+        return legalMoves[Math.floor(Math.random() * legalMoves.length)];
+      }
+
+      const oppColor = color === 'w' ? 'b' : 'w';
+
+      // Find enemy King position for attack evaluation
+      let enemyKingR = 3.5;
+      let enemyKingC = 3.5;
+      for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+          const p = boardState[r][c];
+          if (p && p.type === 'king' && p.color === oppColor) {
+            enemyKingR = r;
+            enemyKingC = c;
+            break;
+          }
+        }
+      }
 
       let bestScore = -Infinity;
       let bestCandidates = [];
@@ -2796,51 +3267,94 @@ export function initWizardChess() {
         const target = boardState[m.toR][m.toC];
         let score = 0;
 
-        // Material gain on capture
+        const pVal = STANDARD_MATERIAL_POINTS[piece.type] || 1;
+        const tVal = target ? (STANDARD_MATERIAL_POINTS[target.type] || 0) : 0;
+
+        // Piece preference multiplier
+        const pieceMult = legendConfig.piecePref?.[piece.type] || 1.0;
+
+        // Material gain
         if (target) {
-          score += PIECE_VALUES[target.type] * 1.15 - PIECE_VALUES[piece.type] * 0.08;
+          score += tVal * 100 * pieceMult - pVal * 10;
         }
 
-        // Center control bonus
+        // Center control & development
         const centerDist = Math.abs(3.5 - m.toR) + Math.abs(3.5 - m.toC);
-        score += (7 - centerDist) * 8;
+        score += (7 - centerDist) * legendConfig.centerWeight;
 
-        // Pawn advancement bonus
+        // Rapid development for unmoved pieces in home rank
+        const homeRow = color === 'w' ? 7 : 0;
+        if (m.fromR === homeRow && !piece.hasMoved) {
+          score += legendConfig.developmentWeight * 2.5;
+        }
+
+        // King attack proximity
+        const distToKing = Math.hypot(m.toR - enemyKingR, m.toC - enemyKingC);
+        score += (10 - distToKing) * legendConfig.kingAttackWeight * 0.4;
+
+        // Pawn advancement
         if (piece.type === 'pawn') {
           const advance = color === 'w' ? (6 - m.toR) : (m.toR - 1);
-          score += advance * 12;
+          score += advance * 15;
         }
 
-        // Simulate move to check if destination is hanging or gives check
+        // Simulate candidate move
         boardState[m.toR][m.toC] = piece;
         boardState[m.fromR][m.fromC] = null;
-        const oppColor = color === 'w' ? 'b' : 'w';
-        if (isKingInCheck(oppColor, boardState)) {
-          score += 45;
+
+        // Check delivery bonus
+        const givesCheck = isKingInCheck(oppColor, boardState);
+        if (givesCheck) {
+          score += 55 + legendConfig.kingAttackWeight * 0.5;
         }
-        // Check if opponent can recapture on destination square
+
+        // Opponent counter-attack / hanging piece penalty
+        let isHanging = false;
+        let hangingLoss = 0;
         for (let rr = 0; rr < 8; rr++) {
           for (let cc = 0; cc < 8; cc++) {
             const opp = boardState[rr][cc];
             if (opp && opp.color === oppColor) {
               const oppMoves = getPseudoMovesForPiece(rr, cc, boardState);
               if (oppMoves.some((om) => om.r === m.toR && om.c === m.toC)) {
-                score -= PIECE_VALUES[piece.type] * 0.75;
+                isHanging = true;
+                hangingLoss = pVal * 80;
                 break;
               }
             }
           }
+          if (isHanging) break;
         }
+
+        // Factor hanging penalty vs sacrifice tolerance (e.g. Tal/Alekhine/Polgar tolerate sacrifices for check/attack!)
+        if (isHanging) {
+          if (givesCheck && legendConfig.sacrificeTolerance > 20) {
+            score -= hangingLoss * (1 - legendConfig.sacrificeTolerance / 100);
+            score += legendConfig.sacrificeTolerance * 1.5;
+          } else {
+            score -= hangingLoss;
+          }
+        }
+
+        // Positional restriction bonus (Karpov / Carlsen): count remaining legal moves of opponent
+        if (legendConfig.positionalWeight > 20) {
+          const oppLegalCount = getAllLegalMoves(oppColor).length;
+          score += (40 - oppLegalCount) * (legendConfig.positionalWeight * 0.4);
+        }
+
+        // Undo simulation
         boardState[m.fromR][m.fromC] = piece;
         boardState[m.toR][m.toC] = target;
 
-        // Small jitter so AI varies openings
-        score += (Math.random() - 0.5) * 14;
+        // Add difficulty noise jitter
+        if (diffConfig.noiseJitter > 0) {
+          score += (Math.random() - 0.5) * diffConfig.noiseJitter;
+        }
 
-        if (score > bestScore + 1) {
+        if (score > bestScore + 0.5) {
           bestScore = score;
           bestCandidates = [m];
-        } else if (Math.abs(score - bestScore) <= 1) {
+        } else if (Math.abs(score - bestScore) <= 0.5) {
           bestCandidates.push(m);
         }
       }
@@ -3384,6 +3898,11 @@ export function initWizardChess() {
         e.preventDefault();
         toggleUI();
       }
+
+      if (e.code === 'KeyM') {
+        e.preventDefault();
+        toggleAudioMute();
+      }
     });
 
     window.addEventListener('keyup', (e) => {
@@ -3429,6 +3948,7 @@ export function initWizardChess() {
       }
       impactFlashLight.position.set(worldPos.x, BOARD_SURFACE_Y + 0.35, worldPos.z);
       impactFlashLight.intensity = 6.2;
+      playKingFall();
     }
 
     function showCheckmateBanner(winnerColor, defeatedColor) {
@@ -3792,14 +4312,22 @@ export function initWizardChess() {
         const whiteSan = whiteMove?.san || (whiteMove ? formatSAN(whiteMove.move, false, false) : '');
         const blackSan = blackMove?.san || (blackMove ? formatSAN(blackMove.move, false, false) : (blackIdx < totalMoves ? '' : '—'));
 
+        const isWhiteCapture = Boolean(whiteMove?.move?.capture || (whiteSan && whiteSan.includes('x')));
+        const isBlackCapture = Boolean(blackMove?.move?.capture || (blackSan && blackSan.includes('x')));
+
         const isLatestWhite = (whiteIdx === totalMoves - 1);
         const isLatestBlack = (blackIdx === totalMoves - 1);
+
+        const skullBadge = '<span class="skull-capture-icon" title="Captura corpo a corpo gótica" aria-label="Captura">💀</span>';
+
+        const whiteDisplay = whiteSan ? `${whiteSan}${isWhiteCapture ? skullBadge : ''}` : '';
+        const blackDisplay = blackSan ? `${blackSan}${isBlackCapture ? skullBadge : ''}` : '';
 
         rows.push(`
           <div class="move-history-row">
             <span class="move-num">${turnNum}.</span>
-            <span class="move-val white-move ${isLatestWhite ? 'latest' : ''}">${whiteSan}</span>
-            <span class="move-val black-move ${isLatestBlack ? 'latest' : ''}">${blackSan}</span>
+            <span class="move-val white-move ${isLatestWhite ? 'latest' : ''} ${isWhiteCapture ? 'has-capture' : ''}">${whiteDisplay}</span>
+            <span class="move-val black-move ${isLatestBlack ? 'latest' : ''} ${isBlackCapture ? 'has-capture' : ''}">${blackDisplay}</span>
           </div>
         `);
       }
@@ -3808,6 +4336,116 @@ export function initWizardChess() {
 
       if (bodyEl) {
         bodyEl.scrollTop = bodyEl.scrollHeight;
+      }
+    }
+
+    // =========================================================================
+    // Real-Time Match Statistics & Material Advantage Tracking
+    // =========================================================================
+    const STANDARD_MATERIAL_POINTS = {
+      pawn: 1,
+      knight: 3,
+      bishop: 3,
+      rook: 5,
+      queen: 9,
+      king: 0
+    };
+
+    let matchStartTime = Date.now();
+    let matchElapsedSeconds = 0;
+    let matchTimerPaused = false;
+
+    function getMaterialData() {
+      let whiteMaterial = 0;
+      let blackMaterial = 0;
+      let whitePieces = 0;
+      let blackPieces = 0;
+
+      for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+          const p = boardState[r][c];
+          if (!p) continue;
+          const v = STANDARD_MATERIAL_POINTS[p.type] || 0;
+          if (p.color === 'w') {
+            whiteMaterial += v;
+            whitePieces++;
+          } else {
+            blackMaterial += v;
+            blackPieces++;
+          }
+        }
+      }
+
+      const diff = whiteMaterial - blackMaterial;
+      return {
+        whiteMaterial,
+        blackMaterial,
+        whitePieces,
+        blackPieces,
+        diff
+      };
+    }
+
+    function formatMatchTime(seconds) {
+      const m = Math.floor(seconds / 60);
+      const s = seconds % 60;
+      return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    }
+
+    function renderStatsUI() {
+      const timeEl = document.getElementById('stat-match-time');
+      const capWhiteEl = document.getElementById('stat-captures-white');
+      const capBlackEl = document.getElementById('stat-captures-black');
+      const diffEl = document.getElementById('stat-material-diff');
+      const matWhiteEl = document.getElementById('stat-material-white');
+      const matBlackEl = document.getElementById('stat-material-black');
+      const barFillEl = document.getElementById('stat-material-bar-fill');
+      const piecesWhiteEl = document.getElementById('stat-pieces-white');
+      const piecesBlackEl = document.getElementById('stat-pieces-black');
+
+      if (timeEl) {
+        timeEl.textContent = formatMatchTime(matchElapsedSeconds);
+      }
+      if (capWhiteEl) {
+        capWhiteEl.textContent = String(capturedByWhite);
+      }
+      if (capBlackEl) {
+        capBlackEl.textContent = String(capturedByBlack);
+      }
+
+      const mat = getMaterialData();
+
+      if (diffEl) {
+        if (mat.diff > 0) {
+          diffEl.textContent = `Brancas +${mat.diff}`;
+          diffEl.className = 'stat-advantage-badge white-advantage';
+        } else if (mat.diff < 0) {
+          diffEl.textContent = `Pretas +${Math.abs(mat.diff)}`;
+          diffEl.className = 'stat-advantage-badge black-advantage';
+        } else {
+          diffEl.textContent = 'Equilíbrio (0)';
+          diffEl.className = 'stat-advantage-badge neutral-advantage';
+        }
+      }
+
+      if (matWhiteEl) {
+        matWhiteEl.textContent = `${mat.whiteMaterial} pts`;
+      }
+      if (matBlackEl) {
+        matBlackEl.textContent = `${mat.blackMaterial} pts`;
+      }
+
+      if (barFillEl) {
+        const totalMat = mat.whiteMaterial + mat.blackMaterial;
+        const pct = totalMat > 0 ? (mat.whiteMaterial / totalMat) * 100 : 50;
+        barFillEl.style.width = `${pct.toFixed(1)}%`;
+      }
+
+      if (piecesWhiteEl) {
+        piecesWhiteEl.textContent = String(mat.whitePieces);
+      }
+      if (piecesBlackEl) {
+        piecesBlackEl.textContent = String(mat.blackPieces);
       }
     }
 
@@ -3829,6 +4467,32 @@ export function initWizardChess() {
       const inCheck = isKingInCheck(currentTurn, boardState);
       const isMate = inCheck && legalMoves.length === 0;
 
+      // 3D Visual Effect: Golden ring pulsation & particle aura around the King in check
+      if (inCheck && !gameOver) {
+        let kingPos = null;
+        for (let r = 0; r < 8; r++) {
+          for (let c = 0; c < 8; c++) {
+            const p = boardState[r][c];
+            if (p && p.type === 'king' && p.color === currentTurn) {
+              kingPos = boardToWorld(r, c);
+              break;
+            }
+          }
+          if (kingPos) break;
+        }
+        if (kingPos) {
+          checkVisualGroup.position.set(kingPos.x, BOARD_SURFACE_Y + 0.016, kingPos.z);
+          checkPointLight.position.set(kingPos.x, BOARD_SURFACE_Y + 0.38, kingPos.z);
+          checkVisualGroup.visible = true;
+        } else {
+          checkVisualGroup.visible = false;
+          checkPointLight.intensity = 0;
+        }
+      } else {
+        checkVisualGroup.visible = false;
+        checkPointLight.intensity = 0;
+      }
+
       // Finalize SAN for last move in history if needed
       if (moveHistory.length > 0) {
         const lastEntry = moveHistory[moveHistory.length - 1];
@@ -3837,9 +4501,11 @@ export function initWizardChess() {
         }
       }
       renderMoveHistoryUI();
+      renderStatsUI();
 
       if (legalMoves.length === 0) {
         gameOver = true;
+        matchTimerPaused = true;
         if (inCheck) {
           const winner = currentTurn === 'w' ? 'Pretas' : 'Brancas';
           turnText.textContent = `Xeque-mate — ${winner} Vencem`;
@@ -3855,6 +4521,7 @@ export function initWizardChess() {
         const isAiTurn = !scriptedGameActive && gameMode === 'single' && currentTurn === aiColor;
         if (inCheck) {
           turnText.textContent = `${turnLabel} (Xeque!)`;
+          playCheckAlert();
         } else if (isAiTurn) {
           turnText.textContent = `${turnLabel} (IA)...`;
         } else {
@@ -3969,6 +4636,7 @@ export function initWizardChess() {
         selectedSquare = { r: clickedR, c: clickedC };
         validMoves = getLegalMovesForPiece(clickedR, clickedC);
         showSquareHighlights(clickedR, clickedC, validMoves);
+        playPieceSelect();
       } else {
         clearSquareHighlights();
         selectedSquare = null;
@@ -4592,9 +5260,33 @@ export function initWizardChess() {
     // Programmatic API for Automated Verification & Camera Inspection
     // =========================================================================
     window.wizardChess = {
+      initAudioEngine,
+      toggleAudioMute,
+      isAudioMuted,
+      playStoneSlide,
+      playStoneThud,
+      playMeleeClash,
+      playStoneShatter,
+      playKingFall,
       getGamePGN,
       getMoveHistory: () => moveHistory.map((m) => m.san || (m.move ? formatSAN(m.move, false, false) : '')),
       renderMoveHistoryUI,
+      renderStatsUI,
+      getMatchStats: () => ({
+        matchElapsedSeconds,
+        capturedByWhite,
+        capturedByBlack,
+        ...getMaterialData()
+      }),
+      setAIDifficulty,
+      setAILegend,
+      getAIConfig,
+      CHESS_LEGENDS,
+      AI_DIFFICULTIES,
+      setBoard3DTheme,
+      getCurrentBoardTheme: () => currentBoardTheme,
+      getMasterHintMove,
+      getBoardState: () => boardState.map((row) => row.map((cell) => (cell ? { type: cell.type, color: cell.color, r: cell.r, c: cell.c } : null))),
       setCameraPreset,
       setCameraPose,
       setCameraLook: setCameraPose,
@@ -4708,6 +5400,13 @@ export function initWizardChess() {
         isAnimatingMove,
         gameOver,
         checkmateState: { ...checkmateState },
+        checkVisualActive: Boolean(checkVisualGroup?.visible),
+        stats: {
+          matchElapsedSeconds,
+          capturedByWhite,
+          capturedByBlack,
+          ...getMaterialData()
+        },
         capturedByWhite,
         capturedByBlack,
         cameraPos: camera.position.toArray(),
@@ -5089,6 +5788,76 @@ export function initWizardChess() {
           baseInt +
           Math.sin(elapsedTotal * 5.6 + i * 1.7) * 0.28 +
           Math.cos(elapsedTotal * 9.1 + i) * 0.16;
+      }
+
+      // Advance King-in-check golden aura pulsation, particle vortex, and warm warning light
+      if (checkVisualGroup && checkVisualGroup.visible) {
+        const pulseInner = 1.0 + Math.sin(elapsedTotal * 6.2) * 0.14;
+        checkInnerRing.scale.set(pulseInner, pulseInner, 1);
+        checkInnerRingMat.opacity = 0.55 + Math.sin(elapsedTotal * 6.2) * 0.35;
+
+        const pulseOuter = 1.0 + Math.cos(elapsedTotal * 4.5) * 0.08;
+        checkOuterRing.scale.set(pulseOuter, pulseOuter, 1);
+        checkOuterRingMat.opacity = 0.40 + Math.cos(elapsedTotal * 4.5) * 0.25;
+        checkOuterRing.rotation.z = elapsedTotal * 1.2;
+        checkInnerRing.rotation.z = -elapsedTotal * 0.8;
+
+        // Animate rising vortex motes
+        const posAttr = checkParticleGeo.attributes.position;
+        const posArr = posAttr.array;
+        for (let i = 0; i < CHECK_PARTICLE_COUNT; i++) {
+          const d = checkParticleData[i];
+          d.angle += d.rotSpeed * dt;
+          d.y += d.speed * dt;
+          if (d.y > 0.68) {
+            d.y = 0.02;
+            d.radius = BOARD_SQ_SIZE * 0.20 + Math.random() * 0.18;
+          }
+          const curR = d.radius * (1.0 + Math.sin(elapsedTotal * 4.2 + i) * 0.12);
+          posArr[i * 3 + 0] = Math.cos(d.angle) * curR;
+          posArr[i * 3 + 1] = d.y;
+          posArr[i * 3 + 2] = Math.sin(d.angle) * curR;
+        }
+        posAttr.needsUpdate = true;
+
+        // Animate cascading Fogo-Fátuo golden embers (falling rain over King)
+        if (checkCascadeGeo) {
+          const cascAttr = checkCascadeGeo.attributes.position;
+          const cascArr = cascAttr.array;
+          for (let i = 0; i < CHECK_CASCADE_COUNT; i++) {
+            const d = checkCascadeData[i];
+            d.y -= d.fallSpeed * dt;
+            if (d.y <= 0.02) {
+              d.y = 1.15 + Math.random() * 0.20;
+              d.radius = Math.random() * BOARD_SQ_SIZE * 0.46;
+              d.angle = Math.random() * Math.PI * 2;
+            }
+            const swayR = d.radius + Math.sin(elapsedTotal * d.swaySpeed + d.seed) * 0.025;
+            cascArr[i * 3 + 0] = Math.cos(d.angle + Math.sin(elapsedTotal * 1.5 + d.seed) * 0.3) * swayR;
+            cascArr[i * 3 + 1] = d.y;
+            cascArr[i * 3 + 2] = Math.sin(d.angle + Math.sin(elapsedTotal * 1.5 + d.seed) * 0.3) * swayR;
+          }
+          cascAttr.needsUpdate = true;
+        }
+
+        if (checkPointLight) {
+          checkPointLight.intensity = 2.8 + Math.sin(elapsedTotal * 7.5) * 1.4;
+        }
+      } else if (checkPointLight && checkPointLight.intensity > 0) {
+        checkPointLight.intensity = 0;
+      }
+
+      // Advance Real-Time Match Clock if game is active
+      if (!gameOver && !matchTimerPaused) {
+        const now = Date.now();
+        const currentSec = Math.floor((now - matchStartTime) / 1000);
+        if (currentSec !== matchElapsedSeconds) {
+          matchElapsedSeconds = currentSec;
+          const timeEl = document.getElementById('stat-match-time');
+          if (timeEl) {
+            timeEl.textContent = formatMatchTime(matchElapsedSeconds);
+          }
+        }
       }
 
       if (isAnimatingMove || activeMoveTweens.length > 0 || shatterDebris.length > 0 || checkmateState.active) {
